@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Úklid</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Úklid">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f6f4ef">
+<style>
+  :root{
+    --bg:#f6f4ef; --card:#fff; --ink:#1f1d1a; --mut:#8a857b; --line:#e7e3da;
+    --today:#fff4d6; --sel:#1f1d1a;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#151412; --card:#1e1d1a; --ink:#f1eee8; --mut:#8f8a80; --line:#2d2b27; --today:#2e2716; --sel:#f1eee8; }
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font:15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif}
+  body{display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden;
+    padding-top:calc(env(safe-area-inset-top) + 12px)}
+  header,.status{flex:none}
+  header{padding:0 16px 10px; display:flex; align-items:flex-end; justify-content:space-between; gap:8px}
+  h1{font-size:22px; margin:0; letter-spacing:-.02em}
+  .sub{color:var(--mut); font-size:13px; margin-top:2px}
+  .nav{display:flex; gap:6px}
+  .nav button{border:1px solid var(--line); background:var(--card); color:var(--ink);
+    height:34px; min-width:34px; border-radius:10px; font-size:15px; padding:0 10px}
+  .status{margin:0 16px 8px; font-size:12px; color:var(--mut); min-height:16px}
+
+  .wrap{flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; border-top:1px solid var(--line); background:var(--card);
+    padding-bottom:calc(env(safe-area-inset-bottom) + 80px)}
+  table{border-collapse:separate; border-spacing:0; min-width:100%}
+  th,td{padding:0; border-bottom:1px solid var(--line)}
+  .name{position:sticky; left:0; z-index:2; background:var(--card); min-width:150px; max-width:150px;
+    border-right:1px solid var(--line); text-align:left}
+  thead th{position:sticky; top:0; z-index:3; background:var(--card); font-weight:500; box-shadow:inset 0 -1px 0 var(--line)}
+  thead .name{z-index:4; font-size:12px; color:var(--mut); padding:6px 12px}
+  .dh{width:40px; min-width:40px; text-align:center; font-size:11px; color:var(--mut); padding:6px 0; cursor:pointer; user-select:none}
+  .dh b{display:block; font-size:15px; color:var(--ink); font-weight:600}
+  .dh.today{background:var(--today)}
+  thead .dh.today{background:linear-gradient(var(--today),var(--today)), var(--card)}
+  .dh.sel b{background:var(--sel); color:var(--bg); border-radius:8px; display:block; width:28px; margin:0 auto; padding:1px 0}
+  .dh.wk{color:#c0573a}
+  .room td{background:var(--bg); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:14px 12px 6px; color:var(--mut)}
+  .room td.name{background:var(--bg)}
+  .room .dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:1px}
+
+  .task{display:block; width:100%; text-align:left; border:0; background:none; color:var(--ink);
+    padding:9px 12px; font:inherit; cursor:pointer}
+  .task:active{background:var(--line)}
+  .task small{display:block; color:var(--mut); font-size:11.5px; margin-top:1px}
+  .task small.late{color:#c0573a}
+  td.c{text-align:center; cursor:pointer; height:48px}
+  td.c.today{background:var(--today)}
+  .mark{display:inline-flex; width:26px; height:26px; border-radius:8px; align-items:center; justify-content:center;
+    color:#fff; font-size:14px; font-weight:700; transform:scale(1); transition:transform .12s}
+  .mark.on{animation:pop .2s}
+  @keyframes pop{0%{transform:scale(.5)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+  .empty{width:6px; height:6px; border-radius:50%; background:var(--line); display:inline-block}
+
+  .task.edit{display:flex; align-items:center; justify-content:space-between; gap:6px; cursor:default}
+  .del{border:0; background:var(--line); color:var(--ink); width:26px; height:26px; border-radius:8px; font-size:14px; flex:none}
+  .addrow td{background:var(--card)}
+  .addbox{position:sticky; left:0; width:min(100vw,440px); display:flex; gap:6px; padding:8px 12px}
+  .addbox input{flex:1; min-width:0; height:36px; border:1px solid var(--line); border-radius:10px; padding:0 10px;
+    font:inherit; font-size:16px; background:var(--bg); color:var(--ink)}
+  .addbox button{height:36px; border:0; border-radius:10px; padding:0 14px; font:inherit; font-weight:600; color:#fff; background:var(--ink)}
+  @media (prefers-color-scheme: dark){ .addbox button{color:#151412} }
+  .nav button.on{background:var(--ink); color:var(--bg)}
+  .rmroom{float:right; border:0; background:none; color:var(--mut); font:inherit; font-size:11px; text-transform:none; letter-spacing:0; padding:0}
+  tr.tint td.name, tr.tint td.c{background:linear-gradient(var(--tint),var(--tint)), var(--card)}
+  tr.tint td.c.today{background:linear-gradient(var(--tint),var(--tint)), linear-gradient(var(--today),var(--today)), var(--card)}
+  tr.tint .task small{color:var(--ink); opacity:.65}
+  tr.tint .task small.late{color:#a3261b; opacity:1; font-weight:600}
+  @media (prefers-color-scheme: dark){ tr.tint .task small.late{color:#ff8a7a} }
+  tr.tint.deep .task small.late{color:#fff}
+  .sheetbg{position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:20; display:none}
+  .sheet{position:fixed; left:0; right:0; bottom:0; z-index:21; background:var(--card); border-radius:18px 18px 0 0;
+    padding:18px 16px calc(env(safe-area-inset-bottom) + 16px); transform:translateY(105%); transition:transform .22s;
+    max-height:85vh; overflow:auto}
+  .sheet.show{transform:none} .sheetbg.show{display:block}
+  .sheet h2{margin:0 0 4px; font-size:18px} .sheet p{margin:0 0 14px; color:var(--mut); font-size:13.5px}
+  .big{display:flex; align-items:center; justify-content:center; width:100%; height:46px; border:0; border-radius:12px; margin-bottom:8px;
+    font:inherit; font-weight:600; background:var(--ink); color:var(--bg); padding:0}
+  .big.ghost{background:var(--bg); color:var(--ink); border:1px solid var(--line)}
+  .cf input{display:block; width:100%; height:42px; border:1px solid var(--line); border-radius:10px; padding:0 10px; margin-bottom:8px;
+    font:inherit; font-size:16px; background:var(--bg); color:var(--ink)}
+  .cloud{font-size:12px; color:var(--mut)} .cloud.err{color:#c0573a}
+  .sheet details{margin:4px 0 10px} .sheet summary{color:var(--mut); font-size:14px; padding:6px 0}
+  .sheet textarea{width:100%; height:110px; border:1px solid var(--line); border-radius:10px; padding:8px; font:13px monospace;
+    background:var(--bg); color:var(--ink); margin:6px 0 8px}
+  .hint{position:sticky; left:0; width:100vw; max-width:100vw; padding:12px 16px; margin:0; font-size:12.5px; color:var(--mut)}
+  .editing .name{min-width:270px; max-width:270px}
+  .erow{display:flex; align-items:center; gap:5px; padding:6px 8px 6px 10px}
+  .erow input{flex:1; min-width:0; height:34px; border:1px solid var(--line); border-radius:9px; padding:0 8px;
+    font:inherit; font-size:16px; background:var(--bg); color:var(--ink)}
+  .room .erow input{font-weight:700; text-transform:none; letter-spacing:0}
+  .ib{border:0; background:var(--line); color:var(--ink); width:30px; height:30px; border-radius:8px; font-size:14px; flex:none; padding:0}
+  .ib:disabled{opacity:.3}
+  .toast{position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom) + 14px); z-index:10;
+    background:var(--ink); color:var(--bg); border-radius:14px; padding:12px 14px; display:flex; align-items:center;
+    justify-content:space-between; gap:10px; font-size:14px; transform:translateY(140%); transition:transform .2s}
+  .toast.show{transform:none}
+  .toast button{background:none; border:0; color:#f5c84b; font:inherit; font-weight:700; padding:4px 6px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Úklid</h1>
+    <div class="sub" id="selLabel"></div>
+  </div>
+  <div class="nav">
+    <button id="menuBtn" aria-label="Záloha">⋯</button>
+    <button id="editBtn">Upravit</button>
+    <button id="prev" aria-label="Předchozí týden">‹</button>
+    <button id="todayBtn">Dnes</button>
+    <button id="next" aria-label="Další týden">›</button>
+  </div>
+</header>
+<div class="status" id="status">Načítám…</div>
+<div class="wrap" id="wrap"><table id="grid"></table>
+<div class="hint">Klepni na činnost → zapíše se k vybranému dni (tučně v záhlaví). Na jiný den přepneš klepnutím na datum. Klepnutím do buňky zápis přidáš nebo smažeš. Místa a místnosti přidáš, přejmenuješ a přesuneš přes „Upravit“.</div></div>
+<div class="sheetbg" id="sheetbg"></div>
+<div class="sheet" id="sheet">
+  <h2>Online ukládání</h2>
+  <p id="cloudInfo">Záznamy se ukládají do soukromého repozitáře na tvém GitHubu.</p>
+  <div class="cf">
+    <input id="cfOwner" placeholder="GitHub jméno (např. ondrejdolejsi)" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input id="cfRepo" placeholder="Repozitář (např. uklid-data)" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input id="cfToken" placeholder="Token (github_pat_…)" type="password" autocapitalize="off" autocorrect="off" spellcheck="false">
+  </div>
+  <button class="big" id="cfSave">Uložit a připojit</button>
+  <button class="big ghost" id="cfOff" style="display:none">Odpojit online ukládání</button>
+  <h2 style="margin-top:18px">Záloha do souboru</h2>
+  <p>Pro jistotu můžeš data uložit i ručně.</p>
+  <button class="big ghost" id="bkSave">Uložit zálohu do souboru</button>
+  <label class="big ghost">Obnovit ze souboru<input type="file" id="bkFile" accept=".json,application/json" hidden></label>
+  <button class="big ghost" id="bkCopy">Zkopírovat data</button>
+  <details><summary>Vložit data (např. z verze v Claude)</summary>
+    <textarea id="bkText" placeholder="Sem vlož zkopírovaná data…"></textarea>
+    <button class="big ghost" id="bkPaste">Načíst vložená data</button>
+  </details>
+  <button class="big ghost" id="bkClose">Zavřít</button>
+</div>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="undo">Zpět</button></div>
+
+<script>
+// ---- Výchozí místa (dokud si seznam neupravíš v appce) ----
+const DEFAULT_ROOMS = [
+  { id:"obyvak", name:"Obývák", color:"#5b8def", tasks:[
+    ["stul","Stůl"], ["skrin-vojta","Skříň na Vojtovy knížky"], ["knihovna","Knihovna"], ["mala-skrinka","Malá skříňka"]
+  ]},
+  { id:"kuchyn", name:"Kuchyň", color:"#e0823d", tasks:[
+    ["linka","Linka"], ["sporak","Sporák"], ["lednice-zvenku","Lednice zvenku"], ["lednice-uvnitr","Lednice uvnitř"],
+    ["drez","Dřez"], ["sporak-zvenku","Sporák zvenku"]
+  ]},
+];
+let ROOMS = DEFAULT_ROOMS.map(r => ({ id:r.id, name:r.name, color:r.color, tasks:r.tasks.map(([id,name]) => ({id,name})) }));
+const PALETTE = ["#5b8def","#e0823d","#3aa676","#b45fd0","#d6487a","#2fa3b5","#a08a2c","#6a6f7c"];
+let editing = false;
+const DAYS_SHOWN = 14;
+const DOW = ["ne","po","út","st","čt","pá","so"];
+const MONTHS = ["ledna","února","března","dubna","května","června","července","srpna","září","října","listopadu","prosince"];
+
+// ---- helpers ----
+const pad = n => String(n).padStart(2,"0");
+const key = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const mkey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const tid = (r,t) => `${r}.${t}`;
+
+// ---- state ----
+// months[ "2026-11" ] = { "23": Set(taskIds) }
+const months = {};
+const pending = {};          // month -> number of writes in flight
+const chains = {};           // month -> promise chain (one write at a time per doc)
+let readOnly = false;
+let today = startOfDay(new Date());
+let selected = new Date(today);
+let endDate = new Date(today);
+
+function has(d, id){ const m = months[mkey(d)]; return !!(m && m[d.getDate()] && m[d.getDate()].has(id)); }
+function setMark(d, id, on){
+  const mk = mkey(d), day = String(d.getDate());
+  const m = months[mk] || (months[mk] = {});
+  const s = m[day] || (m[day] = new Set());
+  on ? s.add(id) : s.delete(id);
+  if (!s.size) delete m[day];
+  save(mk);
+}
+function lastDone(id){
+  let best = null;
+  for (const mk in months){
+    for (const day in months[mk]){
+      if (months[mk][day].has(id)){
+        const [y,mo] = mk.split("-").map(Number);
+        const d = new Date(y, mo-1, Number(day));
+        if (d <= today && (!best || d > best)) best = d;
+      }
+    }
+  }
+  return best;
+}
+// barva řádku: dnes zelená → 7 dní červená → 14+ dní tmavě červená, nikdy šedá
+function tint(d){
+  if (!d) return "rgba(128,128,128,.22)";
+  const n = Math.max(0, (today - d)/864e5);
+  if (n <= 7){ const h = Math.round(130 * (1 - n/7)); return `hsla(${h},70%,48%,.24)`; }
+  const k = Math.min(1, (n - 7)/7);
+  const l = Math.round(48 - 20*k), a = (.24 + .26*k).toFixed(2);
+  return `hsla(0,75%,${l}%,${a})`;
+}
+function ago(d){
+  if (!d) return "zatím nikdy";
+  const n = Math.round((today - d)/864e5);
+  if (n === 0) return "dnes";
+  if (n === 1) return "včera";
+  if (n < 5) return `před ${n} dny`;
+  return `před ${n} dny`;
+}
+
+// ---- rendering ----
+const grid = document.getElementById("grid");
+let lastPop = null;
+function render(){
+  const days = [];
+  for (let i = DAYS_SHOWN-1; i >= 0; i--) days.push(addDays(endDate, -i));
+  let h = `<thead><tr><th class="name">Místo</th>`;
+  for (const d of days){
+    const cls = ["dh"];
+    if (+d === +today) cls.push("today");
+    if (+d === +selected) cls.push("sel");
+    if (d.getDay() === 0 || d.getDay() === 6) cls.push("wk");
+    h += `<th class="${cls.join(" ")}" data-d="${key(d)}">${DOW[d.getDay()]}<b>${d.getDate()}</b></th>`;
+  }
+  h += `</tr></thead><tbody>`;
+  for (const r of ROOMS){
+    const ri = ROOMS.indexOf(r);
+    h += editing
+      ? `<tr class="room"><td class="name" style="padding:8px 0 4px"><div class="erow"><span class="dot" style="background:${r.color}"></span>` +
+        `<input data-room="${r.id}" value="${esc(r.name)}" maxlength="40" aria-label="Název místnosti">` +
+        `<button class="ib" data-act="rup" data-room="${r.id}" ${ri===0?"disabled":""} aria-label="Nahoru">↑</button>` +
+        `<button class="ib" data-act="rdown" data-room="${r.id}" ${ri===ROOMS.length-1?"disabled":""} aria-label="Dolů">↓</button>` +
+        `<button class="ib" data-act="rdel" data-room="${r.id}" aria-label="Smazat místnost">✕</button></div></td><td colspan="${DAYS_SHOWN}"></td></tr>`
+      : `<tr class="room"><td class="name"><span class="dot" style="background:${r.color}"></span>${esc(r.name)}</td><td colspan="${DAYS_SHOWN}"></td></tr>`;
+    r.tasks.forEach(({id:t, name:label}, ti) => {
+      const id = tid(r.id, t), last = lastDone(id);
+      const late = !last || (today - last)/864e5 > 7;
+      h += editing
+        ? `<tr><td class="name"><div class="erow"><input data-room="${r.id}" data-task="${t}" value="${esc(label)}" maxlength="60" aria-label="Název">` +
+          `<button class="ib" data-act="up" data-room="${r.id}" data-task="${t}" ${ti===0?"disabled":""} aria-label="Nahoru">↑</button>` +
+          `<button class="ib" data-act="down" data-room="${r.id}" data-task="${t}" ${ti===r.tasks.length-1?"disabled":""} aria-label="Dolů">↓</button>` +
+          `<button class="ib" data-act="del" data-room="${r.id}" data-task="${t}" aria-label="Odebrat">✕</button></div></td>`
+        : `<tr class="tint${last && (today-last)/864e5 >= 11 ? " deep" : ""}" style="--tint:${tint(last)}"><td class="name"><button class="task" data-id="${id}">${esc(label)}<small class="${late?"late":""}">${ago(last)}</small></button></td>`;
+      for (const d of days){
+        const on = has(d, id), k = key(d);
+        const pop = lastPop === id+"|"+k ? " on" : "";
+        h += `<td class="c${+d === +today ? " today":""}" data-id="${id}" data-d="${k}">` +
+             (on ? `<span class="mark${pop}" style="background:${r.color}">✓</span>` : `<span class="empty"></span>`) + `</td>`;
+      }
+      h += `</tr>`;
+    });
+    if (editing) h += `<tr class="addrow"><td colspan="${DAYS_SHOWN+1}"><form class="addbox" data-room="${r.id}"><input placeholder="Nové místo v ${esc(r.name)}…" maxlength="60"><button>Přidat</button></form></td></tr>`;
+  }
+  if (editing) h += `<tr class="room"><td class="name">Nová místnost</td><td colspan="${DAYS_SHOWN}"></td></tr>` +
+    `<tr class="addrow"><td colspan="${DAYS_SHOWN+1}"><form class="addbox" data-room=""><input placeholder="Např. Koupelna" maxlength="40"><button>Přidat</button></form></td></tr>`;
+  grid.innerHTML = h + `</tbody>`;
+  document.body.classList.toggle("editing", editing);
+  lastPop = null;
+  const s = selected;
+  document.getElementById("selLabel").textContent =
+    (+s === +today ? "Zápis: dnes, " : "Zápis: ") + `${DOW[s.getDay()]} ${s.getDate()}. ${s.getMonth()+1}.`;
+}
+// překreslení z příchozích dat odložit, dokud se píše do políčka
+let needRender = false;
+function softRender(){
+  const a = document.activeElement;
+  if (a && a.tagName === "INPUT" && grid.contains(a)){ needRender = true; return; }
+  render();
+}
+grid.addEventListener("focusout", () => setTimeout(() => {
+  const a = document.activeElement;
+  if (needRender && !(a && a.tagName === "INPUT" && grid.contains(a))){ needRender = false; render(); }
+}, 0));
+function parseKey(k){ const [y,m,d] = k.split("-").map(Number); return new Date(y, m-1, d); }
+function labelOf(id){ for (const r of ROOMS) for (const t of r.tasks) if (tid(r.id,t.id) === id) return t.name; return id; }
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function slug(s){
+  const b = s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,30) || "x";
+  return b + "-" + Math.random().toString(36).slice(2,6);
+}
+
+function toggle(id, d){
+  if (readOnly){ toast("Nemáš oprávnění zapisovat."); return; }
+  const on = !has(d, id);
+  setMark(d, id, on);
+  if (on) lastPop = id+"|"+key(d);
+  render();
+  const when = +d === +today ? "dnes" : `${d.getDate()}. ${d.getMonth()+1}.`;
+  toast(on ? `✓ ${labelOf(id)} – ${when}` : `Smazáno: ${labelOf(id)} – ${when}`, () => { setMark(d, id, !on); render(); });
+}
+
+grid.addEventListener("click", e => {
+  if (editing){
+    const b = e.target.closest(".ib");
+    if (b){
+      const {act, room, task} = b.dataset;
+      if (act === "del") removeTask(room, task);
+      else if (act === "rdel") removeRoom(room);
+      else if (act === "up" || act === "down") moveTask(room, task, act === "up" ? -1 : 1);
+      else if (act === "rup" || act === "rdown") moveRoom(room, act === "rup" ? -1 : 1);
+      return;
+    }
+    if (e.target.closest("td.c, .task, th.dh, input")) return;
+  }
+  const th = e.target.closest("th.dh");
+  if (th){ selected = parseKey(th.dataset.d); render(); return; }
+  const btn = e.target.closest(".task");
+  if (btn){ toggle(btn.dataset.id, selected); return; }
+  const td = e.target.closest("td.c");
+  if (td){ toggle(td.dataset.id, parseKey(td.dataset.d)); }
+});
+grid.addEventListener("submit", e => {
+  e.preventDefault();
+  const f = e.target, inp = f.querySelector("input"), name = inp.value.trim();
+  if (!name) return;
+  if (readOnly){ toast("Nemáš oprávnění upravovat."); return; }
+  const before = snapshotRooms();
+  if (f.dataset.room){
+    const r = ROOMS.find(x => x.id === f.dataset.room);
+    r.tasks.push({ id: slug(name), name });
+    toast(`Přidáno: ${name}`, () => restoreRooms(before));
+  } else {
+    ROOMS.push({ id: slug(name), name, color: PALETTE[ROOMS.length % PALETTE.length], tasks: [] });
+    toast(`Přidána místnost: ${name}`, () => restoreRooms(before));
+  }
+  saveRooms(); render();
+  const again = [...grid.querySelectorAll("form.addbox")].find(x => x.dataset.room === f.dataset.room);
+  if (again && f.dataset.room) again.querySelector("input").focus({preventScroll:true});
+});
+function canEdit(){ if (readOnly){ toast("Nemáš oprávnění upravovat."); return false; } return true; }
+function moveTask(roomId, taskId, dir){
+  if (!canEdit()) return;
+  const r = ROOMS.find(x => x.id === roomId); const i = r.tasks.findIndex(x => x.id === taskId), j = i + dir;
+  if (i < 0 || j < 0 || j >= r.tasks.length) return;
+  [r.tasks[i], r.tasks[j]] = [r.tasks[j], r.tasks[i]];
+  saveRooms(); render();
+}
+function moveRoom(roomId, dir){
+  if (!canEdit()) return;
+  const i = ROOMS.findIndex(x => x.id === roomId), j = i + dir;
+  if (i < 0 || j < 0 || j >= ROOMS.length) return;
+  [ROOMS[i], ROOMS[j]] = [ROOMS[j], ROOMS[i]];
+  saveRooms(); render();
+}
+grid.addEventListener("change", e => {
+  const inp = e.target; if (inp.tagName !== "INPUT" || inp.closest("form")) return;
+  const name = inp.value.trim();
+  const r = ROOMS.find(x => x.id === inp.dataset.room); if (!r) return;
+  const obj = inp.dataset.task ? r.tasks.find(x => x.id === inp.dataset.task) : r;
+  if (!obj) return;
+  if (!name || readOnly){ inp.value = obj.name; if (readOnly) canEdit(); return; }
+  if (name === obj.name) return;
+  const before = snapshotRooms(), old = obj.name;
+  obj.name = name; saveRooms();
+  toast(`Přejmenováno: ${old} → ${name}`, () => restoreRooms(before));
+});
+grid.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.tagName === "INPUT" && !e.target.closest("form")){ e.preventDefault(); e.target.blur(); }
+});
+function snapshotRooms(){ return JSON.parse(JSON.stringify(ROOMS)); }
+function restoreRooms(r){ ROOMS = r; saveRooms(); render(); }
+function removeTask(roomId, taskId){
+  if (readOnly){ toast("Nemáš oprávnění upravovat."); return; }
+  const before = snapshotRooms();
+  const r = ROOMS.find(x => x.id === roomId); const t = r.tasks.find(x => x.id === taskId);
+  r.tasks = r.tasks.filter(x => x.id !== taskId);
+  saveRooms(); render();
+  toast(`Odebráno: ${t ? t.name : ""}`, () => restoreRooms(before));
+}
+function removeRoom(roomId){
+  if (readOnly){ toast("Nemáš oprávnění upravovat."); return; }
+  const before = snapshotRooms();
+  const r = ROOMS.find(x => x.id === roomId);
+  ROOMS = ROOMS.filter(x => x.id !== roomId);
+  saveRooms(); render();
+  toast(`Odebrána místnost: ${r ? r.name : ""}`, () => restoreRooms(before));
+}
+document.getElementById("editBtn").onclick = () => {
+  editing = !editing;
+  const b = document.getElementById("editBtn");
+  b.textContent = editing ? "Hotovo" : "Upravit"; b.classList.toggle("on", editing);
+  render();
+};
+document.getElementById("prev").onclick = () => { endDate = addDays(endDate,-7); render(); };
+document.getElementById("next").onclick = () => { endDate = addDays(endDate, 7); render(); };
+document.getElementById("todayBtn").onclick = () => { today = startOfDay(new Date()); endDate = new Date(today); selected = new Date(today); render(); scrollEnd(); };
+function scrollEnd(){ const w = document.getElementById("wrap"); w.scrollLeft = w.scrollWidth; }
+
+// ---- toast ----
+let toastTimer, undoFn;
+const toastEl = document.getElementById("toast");
+function toast(msg, undo){
+  document.getElementById("toastMsg").textContent = msg;
+  undoFn = undo;
+  document.getElementById("undo").style.display = undo ? "" : "none";
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 3500);
+}
+document.getElementById("undo").onclick = () => { if (undoFn) undoFn(); undoFn = null; toastEl.classList.remove("show"); };
+
+// ---- storage (localStorage, jen v tomto zařízení) ----
+const statusEl = document.getElementById("status");
+function setStatus(t){ statusEl.textContent = t; }
+const LS = "uklid-v1";
+const SEED_ROOMS = [{"color": "#5b8def", "id": "obyvak", "name": "Obývák", "tasks": [{"id": "stul", "name": "Stůl"}, {"id": "skrin-vojta", "name": "Skříň na Vojtovy knížky"}, {"id": "knihovna", "name": "Knihovna"}, {"id": "mala-skrinka", "name": "Malá skříňka"}, {"id": "vysavani-adgp", "name": "Vysávání"}, {"id": "vytirani-0ydk", "name": "Vytírání"}, {"id": "police-na-kytky-velka-4qpz", "name": "Police na kytky velka"}, {"id": "police-na-kytky-mala-47au", "name": "Police na kytky malá"}, {"id": "policky-qk9j", "name": "Poličky"}, {"id": "vojtuv-stolecek-a-zidlicky-ueii", "name": "Vojtův stoleček a židličky"}]}, {"color": "#e0823d", "id": "kuchyn", "name": "Kuchyň", "tasks": [{"id": "linka", "name": "Linka"}, {"id": "sporak", "name": "Sporák"}, {"id": "lednice-zvenku", "name": "Lednice zvenku"}, {"id": "lednice-uvnitr", "name": "Lednice uvnitř"}, {"id": "drez", "name": "Dřez"}, {"id": "skrinka-nad-troubou-3apx", "name": "Skříňka nad troubou"}, {"id": "trouba-zvenku-u29j", "name": "Trouba zvenku"}, {"id": "vysavani-nyuh", "name": "Vysávání"}, {"id": "vytirani-f98o", "name": "Vytírání"}, {"id": "jezdici-skrinka-r9zz", "name": "Jezdící skřínka"}, {"id": "sklenena-police-6yng", "name": "Skleněná police"}, {"id": "stul-jrx0", "name": "Stůl"}, {"id": "zidle-j0dx", "name": "Židle"}, {"id": "prach-v3z2", "name": "Prach"}, {"id": "policky-iaa1", "name": "Poličky"}, {"id": "kos-r9yg", "name": "Koš"}, {"id": "supliky-pod-sporakem-5z5z", "name": "Šuplíky pod sporákem"}, {"id": "male-supliky-ivk9", "name": "Malé šuplíky"}, {"id": "pracka-7rid", "name": "Pračka"}, {"id": "skrinka-na-koreni-nulf", "name": "Skříňka na koření"}, {"id": "skrinka-s-jidlem-wwbc", "name": "Skříňka s jídlem"}, {"id": "skrinky-na-nadobi-ytrr", "name": "Skříňky na nádobí"}]}];
+function validRooms(x){
+  return Array.isArray(x) && x.every(r => r && typeof r.id === "string" && typeof r.name === "string" && Array.isArray(r.tasks) &&
+    r.tasks.every(t => t && typeof t.id === "string" && typeof t.name === "string"));
+}
+function exportData(){
+  const m = {};
+  for (const mk in months){ const e = {}; for (const day in months[mk]) e[day] = [...months[mk][day]]; if (Object.keys(e).length) m[mk] = e; }
+  return { app:"uklid", v:1, savedAt: localSavedAt, rooms: snapshotRooms(), months: m };
+}
+function applyData(d){
+  if (!d || typeof d !== "object") throw new Error("bad");
+  // formát verze v Claude: {rooms, months:{ "2026-11": {e:{...}} }} i offline: {rooms, months:{ "2026-11": {...} }}
+  if (d.rooms !== undefined && !validRooms(d.rooms)) throw new Error("bad");
+  const m = d.months && typeof d.months === "object" ? d.months : {};
+  const out = {};
+  for (const mk in m){
+    if (!/^\d{4}-\d{2}$/.test(mk)) continue;
+    const e = (m[mk] && m[mk].e) || m[mk] || {};
+    const mm = {};
+    for (const day in e) if (Array.isArray(e[day]) && e[day].length) mm[String(+day)] = new Set(e[day].map(String));
+    out[mk] = mm;
+  }
+  if (d.rooms) ROOMS = d.rooms.map(x => ({ id:x.id, name:x.name, color: /^#[0-9a-f]{6}$/i.test(x.color||"") ? x.color : "#888888", tasks:x.tasks.map(t => ({id:t.id, name:t.name})) }));
+  for (const k in months) delete months[k];
+  Object.assign(months, out);
+}
+let saveTimer, localSavedAt = 0;
+function persist(){
+  localSavedAt = Date.now();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(LS, JSON.stringify(exportData())); }
+    catch(e){ setStatus("Data se nepodařilo uložit do telefonu."); }
+    cloudSchedule();
+  }, 150);
+}
+function save(){ persist(); }
+function saveRooms(){ persist(); }
+window.addEventListener("pagehide", () => { clearTimeout(saveTimer); try { localStorage.setItem(LS, JSON.stringify(exportData())); } catch(e){} });
+
+(function load(){
+  let raw = null;
+  try { raw = localStorage.getItem(LS); } catch(e){ setStatus("Ukládání v tomhle prohlížeči nefunguje."); }
+  if (raw){ try { const d = JSON.parse(raw); applyData(d); localSavedAt = +d.savedAt || 0; } catch(e){ setStatus("Uložená data jsou poškozená."); } }
+  else { applyData({ rooms: SEED_ROOMS }); localSavedAt = 0; try { localStorage.setItem(LS, JSON.stringify(exportData())); } catch(e){} }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+})();
+render(); scrollEnd();
+
+// ---- online ukládání na GitHub ----
+const LSC = "uklid-cloud";
+let cloud = null, cloudSha = null, cloudTimer = null, cloudBusy = false, cloudDirty = false;
+try { cloud = JSON.parse(localStorage.getItem(LSC) || "null"); } catch(e){}
+const b64enc = str => { const b = new TextEncoder().encode(str); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+const b64dec = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g,"")), c => c.charCodeAt(0)));
+const hhmm = d => `${d.getHours()}:${pad(d.getMinutes())}`;
+function cloudStatus(t, err){ setStatus(t); statusEl.className = "status cloud" + (err ? " err" : ""); }
+function ghUrl(){ return `https://api.github.com/repos/${encodeURIComponent(cloud.owner)}/${encodeURIComponent(cloud.repo)}/contents/uklid-data.json`; }
+async function gh(method, body){
+  const r = await fetch(ghUrl() + (method === "GET" ? `?t=${Date.now()}` : ""), {
+    method, cache:"no-store",
+    headers: { "Authorization": `Bearer ${cloud.token}`, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  return r;
+}
+async function cloudFetch(){ // -> {data, sha} | null (soubor ještě neexistuje)
+  const r = await gh("GET");
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error("http " + r.status);
+  const j = await r.json();
+  return { sha: j.sha, data: JSON.parse(b64dec(j.content)) };
+}
+function cloudSchedule(){
+  if (!cloud) return;
+  cloudDirty = true;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(cloudPush, 3000);
+}
+async function cloudPush(){
+  if (!cloud || !cloudDirty) return;
+  if (cloudBusy){ cloudTimer = setTimeout(cloudPush, 1500); return; }
+  if (!navigator.onLine){ cloudStatus("Offline – uloží se online, až bude internet."); return; }
+  cloudBusy = true; cloudDirty = false;
+  const content = b64enc(JSON.stringify(exportData(), null, 1));
+  try {
+    for (let attempt = 0; attempt < 2; attempt++){
+      const r = await gh("PUT", { message: `Úklid ${new Date().toISOString().slice(0,16).replace("T"," ")}`, content, ...(cloudSha ? { sha: cloudSha } : {}) });
+      if (r.ok){ cloudSha = (await r.json()).content.sha; cloudStatus(`☁ Uloženo online ${hhmm(new Date())}`); return; }
+      if ((r.status === 409 || r.status === 422) && attempt === 0){ const f = await cloudFetch().catch(() => null); cloudSha = f ? f.sha : null; continue; }
+      if (r.status === 401 || r.status === 403 || r.status === 404){ cloudStatus("Online uložení selhalo – zkontroluj token a repozitář (⋯).", true); return; }
+      throw new Error("http " + r.status);
+    }
+  } catch(e){
+    cloudDirty = true; cloudStatus("Online uložení se nepovedlo, zkusím to znovu.", true);
+    cloudTimer = setTimeout(cloudPush, 30000);
+  } finally { cloudBusy = false; }
+}
+async function cloudSync(){ // po spuštění: novější verze vyhrává
+  if (!cloud) { cloudStatus("Data jsou jen v telefonu – online ukládání nastavíš přes ⋯."); return; }
+  if (!navigator.onLine){ cloudStatus("Offline – změny se uloží online, až bude internet."); return; }
+  cloudStatus("☁ Synchronizuji…");
+  try {
+    const f = await cloudFetch();
+    if (f){
+      cloudSha = f.sha;
+      const remoteAt = +f.data.savedAt || 0;
+      if (remoteAt > localSavedAt){
+        applyData(f.data); localSavedAt = remoteAt;
+        try { localStorage.setItem(LS, JSON.stringify(exportData())); } catch(e){}
+        render(); cloudStatus(`☁ Načteno z online zálohy ${hhmm(new Date())}`); return;
+      }
+      if (remoteAt === localSavedAt){ cloudStatus(`☁ Uloženo online`); return; }
+    }
+    cloudDirty = true; await cloudPush();
+  } catch(e){
+    cloudStatus(String(e.message).includes("http 40") ? "Online uložení selhalo – zkontroluj token a repozitář (⋯)." : "Online zálohu teď nejde načíst.", true);
+  }
+}
+window.addEventListener("online", () => { if (cloudDirty) cloudPush(); else cloudSync(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && cloudDirty){ clearTimeout(cloudTimer); cloudPush(); } });
+function fillCloudForm(){
+  document.getElementById("cfOwner").value = cloud ? cloud.owner : "ondrejdolejsi";
+  document.getElementById("cfRepo").value = cloud ? cloud.repo : "uklid-data";
+  document.getElementById("cfToken").value = cloud ? cloud.token : "";
+  document.getElementById("cfOff").style.display = cloud ? "" : "none";
+  document.getElementById("cfSave").textContent = cloud ? "Uložit změny" : "Uložit a připojit";
+}
+document.getElementById("cfSave").onclick = async () => {
+  const owner = document.getElementById("cfOwner").value.trim(), repo = document.getElementById("cfRepo").value.trim(), token = document.getElementById("cfToken").value.trim();
+  if (!owner || !repo || !token){ toast("Vyplň všechna tři pole."); return; }
+  const prev = cloud; cloud = { owner, repo, token }; cloudSha = null;
+  try {
+    const r = await gh("GET");
+    if (!(r.ok || r.status === 404)) throw new Error();
+    if (r.status === 404){ // ověřit, že repozitář existuje
+      const rr = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, { headers: { "Authorization": `Bearer ${token}`, "Accept": "application/vnd.github+json" } });
+      if (!rr.ok) throw new Error();
+    }
+  } catch(e){ cloud = prev; toast("Připojení nefunguje – zkontroluj jméno, repozitář a token."); return; }
+  try { localStorage.setItem(LSC, JSON.stringify(cloud)); } catch(e){}
+  fillCloudForm(); openSheet(false); toast("Online ukládání je zapnuté.");
+  cloudSync();
+};
+document.getElementById("cfOff").onclick = () => {
+  cloud = null; cloudSha = null; try { localStorage.removeItem(LSC); } catch(e){}
+  fillCloudForm(); cloudStatus("Data jsou jen v telefonu – online ukládání nastavíš přes ⋯.");
+};
+fillCloudForm();
+cloudSync();
+
+// ---- záloha ----
+const sheet = document.getElementById("sheet"), sheetbg = document.getElementById("sheetbg");
+const openSheet = v => { sheet.classList.toggle("show", v); sheetbg.classList.toggle("show", v); };
+document.getElementById("menuBtn").onclick = () => { fillCloudForm(); openSheet(true); };
+document.getElementById("bkClose").onclick = sheetbg.onclick = () => openSheet(false);
+function confirmReplace(d){
+  const before = exportData();
+  applyData(d); persist(); render(); openSheet(false);
+  toast("Data načtena.", () => { applyData(before); persist(); render(); });
+}
+document.getElementById("bkSave").onclick = async () => {
+  const json = JSON.stringify(exportData());
+  const name = `uklid-zaloha-${key(new Date())}.json`;
+  const file = new File([json], name, { type:"application/json" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files:[file] })){ await navigator.share({ files:[file], title:"Záloha úklidu" }); return; }
+  } catch(e){ if (e && e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+document.getElementById("bkFile").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try { confirmReplace(JSON.parse(await f.text())); } catch(err){ toast("Soubor se nepodařilo načíst."); }
+};
+document.getElementById("bkCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText(JSON.stringify(exportData())); toast("Data zkopírována."); }
+  catch(e){ document.getElementById("bkText").value = JSON.stringify(exportData()); toast("Kopírování nejde – data jsou v poli níže."); }
+};
+document.getElementById("bkPaste").onclick = () => {
+  const t = document.getElementById("bkText").value.trim();
+  if (!t) return;
+  try { confirmReplace(JSON.parse(t)); document.getElementById("bkText").value = ""; } catch(e){ toast("Vložená data nejsou platná."); }
+};
+
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+
+// při návratu do aplikace po půlnoci přepnout „dnes“
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  const t = startOfDay(new Date());
+  if (+t !== +today){ const wasToday = +selected === +today; today = t; if (wasToday) selected = new Date(t); endDate = new Date(t); render(); scrollEnd(); }
+});
+</script>
+</body>
+</html>
